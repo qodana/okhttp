@@ -1,0 +1,7 @@
+version: 1.0
+profile:
+  name: qodana.embedded
+exclude:
+  - name: All
+    paths:
+      - okhttp/src/main/kotlin/okhttp3/Response.kt
