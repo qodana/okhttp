@@ -5,3 +5,4 @@ exclude:
   - name: All
     paths:
       - okhttp/src/main/kotlin/okhttp3/Response.kt
+      - okcurl/src/main/kotlin/okhttp3/curl/Main.kt
