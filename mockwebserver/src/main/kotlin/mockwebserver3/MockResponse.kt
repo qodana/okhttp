@@ -16,18 +16,35 @@
 package mockwebserver3
 
 import java.util.concurrent.TimeUnit
+import mockwebserver3.internal.duplex.DuplexResponseBody
 import okhttp3.Headers
 import okhttp3.WebSocketListener
 import okhttp3.internal.addHeaderLenient
 import okhttp3.internal.http2.Settings
-import mockwebserver3.internal.duplex.DuplexResponseBody
 import okio.Buffer
 
 /** A scripted response to be replayed by the mock web server. */
 class MockResponse : Cloneable {
+  var informationalResponses: List<MockResponse> = listOf()
+    private set
+
   /** Returns the HTTP response line, such as "HTTP/1.1 200 OK". */
   @set:JvmName("status")
   var status: String = ""
+
+  val code: Int
+    get() {
+      val statusParts = status.split(' ', limit = 3)
+      require(statusParts.size >= 2) { "Unexpected status: $status" }
+      return statusParts[1].toInt()
+    }
+
+  val message: String
+    get() {
+      val statusParts = status.split(' ', limit = 3)
+      require(statusParts.size >= 2) { "Unexpected status: $status" }
+      return statusParts[2]
+    }
 
   private var headersBuilder = Headers.Builder()
   private var trailersBuilder = Headers.Builder()
@@ -49,13 +66,13 @@ class MockResponse : Cloneable {
 
   private var body: Buffer? = null
 
-  var throttleBytesPerPeriod = Long.MAX_VALUE
+  var throttleBytesPerPeriod: Long = Long.MAX_VALUE
     private set
   private var throttlePeriodAmount = 1L
   private var throttlePeriodUnit = TimeUnit.SECONDS
 
   @set:JvmName("socketPolicy")
-  var socketPolicy = SocketPolicy.KEEP_OPEN
+  var socketPolicy: SocketPolicy = SocketPolicy.KEEP_OPEN
 
   /**
    * Sets the [HTTP/2 error code](https://tools.ietf.org/html/rfc7540#section-7) to be
@@ -64,7 +81,7 @@ class MockResponse : Cloneable {
    * [SocketPolicy.DO_NOT_READ_REQUEST_BODY].
    */
   @set:JvmName("http2ErrorCode")
-  var http2ErrorCode = -1
+  var http2ErrorCode: Int = -1
 
   private var bodyDelayAmount = 0L
   private var bodyDelayUnit = TimeUnit.MILLISECONDS
@@ -253,7 +270,7 @@ class MockResponse : Cloneable {
       message = "moved to var",
       replaceWith = ReplaceWith(expression = "socketPolicy"),
       level = DeprecationLevel.ERROR)
-  fun getSocketPolicy() = socketPolicy
+  fun getSocketPolicy(): SocketPolicy = socketPolicy
 
   /**
    * Sets the socket policy and returns this.
@@ -271,7 +288,7 @@ class MockResponse : Cloneable {
       message = "moved to var",
       replaceWith = ReplaceWith(expression = "http2ErrorCode"),
       level = DeprecationLevel.ERROR)
-  fun getHttp2ErrorCode() = http2ErrorCode
+  fun getHttp2ErrorCode(): Int = http2ErrorCode
 
   /**
    * Sets the HTTP/2 error code and returns this.
@@ -345,7 +362,23 @@ class MockResponse : Cloneable {
     webSocketListener = listener
   }
 
-  override fun toString() = status
+  /**
+   * Adds an HTTP 1xx response to precede this response. Note that this response's
+   * [headers delay][setHeadersDelay] applies after this response is transmitted. Set a
+   * headers delay on that response to delay its transmission.
+   */
+  fun addInformationalResponse(response: MockResponse) = apply {
+    informationalResponses += response
+  }
+
+  fun add100Continue() = apply {
+    addInformationalResponse(
+      MockResponse()
+        .setResponseCode(100)
+    )
+  }
+
+  override fun toString(): String = status
 
   companion object {
     private const val CHUNKED_BODY_HEADER = "Transfer-encoding: chunked"

@@ -14,25 +14,52 @@
  * limitations under the License.
  */
 
-object Projects {
-  /** Returns the artifact ID for the project, or null if it is not published. */
-  @JvmStatic
-  fun publishedArtifactId(projectName: String): String? {
-    return when (projectName) {
-      "okhttp-logging-interceptor" -> "logging-interceptor"
-      "mockwebserver" -> "mockwebserver3"
-      "mockwebserver-junit4" -> "mockwebserver3-junit4"
-      "mockwebserver-junit5" -> "mockwebserver3-junit5"
-      "mockwebserver-deprecated" -> "mockwebserver"
-      "okcurl",
-      "okhttp",
-      "okhttp-bom",
-      "okhttp-brotli",
-      "okhttp-dnsoverhttps",
-      "okhttp-sse",
-      "okhttp-tls",
-      "okhttp-urlconnection" -> projectName
-      else -> null
-    }
+import aQute.bnd.gradle.BundleTaskExtension
+import org.gradle.api.Project
+import org.gradle.api.plugins.ExtensionAware
+import org.gradle.api.tasks.SourceSetContainer
+import org.gradle.api.tasks.bundling.Jar
+import org.gradle.kotlin.dsl.dependencies
+import org.gradle.kotlin.dsl.findByType
+import org.gradle.kotlin.dsl.get
+import org.gradle.kotlin.dsl.getByName
+
+fun Project.applyOsgi(vararg bndProperties: String) {
+  // Configure OSGi for the JVM platform on kotlin-multiplatform.
+  plugins.withId("org.jetbrains.kotlin.multiplatform") {
+    applyOsgi("jvmJar", "jvmOsgiApi", bndProperties)
+  }
+
+  // Configure OSGi for kotlin-jvm.
+  plugins.withId("org.jetbrains.kotlin.jvm") {
+    applyOsgi("jar", "osgiApi", bndProperties)
   }
 }
+
+private fun Project.applyOsgi(
+  jarTaskName: String,
+  osgiApiConfigurationName: String,
+  bndProperties: Array<out String>
+) {
+  val osgi = project.sourceSets.create("osgi")
+  val osgiApi = project.configurations.getByName(osgiApiConfigurationName)
+  project.dependencies {
+    osgiApi("org.jetbrains.kotlin:kotlin-osgi-bundle:1.6.10")
+  }
+
+  val jarTask = tasks.getByName<Jar>(jarTaskName)
+  val bundleExtension = jarTask.extensions.findByType() ?: jarTask.extensions.create(
+    BundleTaskExtension.NAME, BundleTaskExtension::class.java, jarTask
+  )
+  bundleExtension.run {
+    setClasspath(osgi.compileClasspath + sourceSets["main"].compileClasspath)
+    bnd(*bndProperties)
+  }
+  // Call the convention when the task has finished, to modify the jar to contain OSGi metadata.
+  jarTask.doLast {
+    bundleExtension.buildAction().execute(this)
+  }
+}
+
+val Project.sourceSets: SourceSetContainer
+  get() = (this as ExtensionAware).extensions["sourceSets"] as SourceSetContainer

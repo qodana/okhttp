@@ -18,10 +18,10 @@ plugins {
     `kotlin-dsl`
 }
 
-kotlinDslPluginOptions {
-    experimentalWarning.set(false)
-}
-
 repositories {
     mavenCentral()
+}
+
+dependencies {
+  implementation("biz.aQute.bnd:biz.aQute.bnd.gradle:6.2.0")
 }

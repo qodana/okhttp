@@ -1,20 +1,28 @@
-dependencies {
-  api(project(":okhttp"))
-  api(Dependencies.assertj)
-  api(Dependencies.bouncycastle)
-  implementation(Dependencies.bouncycastlepkix)
-  implementation(Dependencies.bouncycastletls)
-  api(Dependencies.conscrypt)
-  api(Dependencies.corretto)
-  api(Dependencies.openjsse)
-  api(Dependencies.hamcrest)
-  api(Dependencies.junit5Api)
-  api(Dependencies.junit5JupiterParams)
+plugins {
+  kotlin("jvm")
+  id("ru.vyarus.animalsniffer")
+}
 
-  compileOnly(Dependencies.jsr305)
-  compileOnly(Dependencies.android)
+dependencies {
+  api(projects.okhttp)
+  api(projects.okhttpTls)
+  api(libs.assertj.core)
+  api(libs.bouncycastle.bcprov)
+  implementation(libs.bouncycastle.bcpkix)
+  implementation(libs.bouncycastle.bctls)
+  api(libs.conscrypt.openjdk)
+  api(libs.openjsse)
+  api(variantOf(libs.amazonCorretto) {
+    classifier("linux-x86_64")
+  })
+  api(libs.hamcrestLibrary)
+  api(libs.junit.jupiter.api)
+  api(libs.junit.jupiter.params)
+
+  compileOnly(libs.findbugs.jsr305)
+  compileOnly(libs.robolectric.android)
 }
 
 animalsniffer {
-  setIgnoreFailures(true)
+  isIgnoreFailures = true
 }

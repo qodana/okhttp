@@ -15,7 +15,6 @@
  */
 package okhttp3
 
-import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 import java.util.logging.Handler
 import java.util.logging.Level
@@ -53,12 +52,14 @@ class OkHttpClientTestRule : BeforeEachCallback, AfterEachCallback {
   var recordFrames = false
   var recordSslDebug = false
 
+  private val sslExcludeFilter = "^(?:Inaccessible trust store|trustStore is|Reload the trust store|Reload trust certs|Reloaded|adding as trusted certificates|Ignore disabled cipher suite|Ignore unsupported cipher suite).*".toRegex()
+
   private val testLogHandler = object : Handler() {
     override fun publish(record: LogRecord) {
       val recorded = when (record.loggerName) {
         TaskRunner::class.java.name -> recordTaskRunner
         Http2::class.java.name -> recordFrames
-        "javax.net.ssl" -> recordSslDebug
+        "javax.net.ssl" -> recordSslDebug && !sslExcludeFilter.matches(record.message)
         else -> false
       }
 
@@ -113,9 +114,10 @@ class OkHttpClientTestRule : BeforeEachCallback, AfterEachCallback {
     var client = testClient
     if (client == null) {
       client = OkHttpClient.Builder()
-          .dns(SINGLE_INET_ADDRESS_DNS) // Prevent unexpected fallback addresses.
-          .eventListenerFactory { ClientRuleEventListener(logger = ::addEvent) }
-          .build()
+        .fastFallback(true) // Test this by default, since it'll soon be the default.
+        .dns(SINGLE_INET_ADDRESS_DNS) // Prevent unexpected fallback addresses.
+        .eventListenerFactory { ClientRuleEventListener(logger = ::addEvent) }
+        .build()
       testClient = client
     }
     return client
@@ -251,11 +253,9 @@ class OkHttpClientTestRule : BeforeEachCallback, AfterEachCallback {
      * A network that resolves only one IP address per host. Use this when testing route selection
      * fallbacks to prevent the host machine's various IP addresses from interfering.
      */
-    private val SINGLE_INET_ADDRESS_DNS = object : Dns {
-      override fun lookup(hostname: String): List<InetAddress> {
-        val addresses = Dns.SYSTEM.lookup(hostname)
-        return listOf(addresses[0])
-      }
+    private val SINGLE_INET_ADDRESS_DNS = Dns { hostname ->
+      val addresses = Dns.SYSTEM.lookup(hostname)
+      listOf(addresses[0])
     }
 
     private operator fun Throwable?.plus(throwable: Throwable): Throwable {

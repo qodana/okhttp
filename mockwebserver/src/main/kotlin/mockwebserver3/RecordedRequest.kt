@@ -104,20 +104,16 @@ class RecordedRequest @JvmOverloads constructor(
       this.path = path
 
       val scheme = if (socket is SSLSocket) "https" else "http"
-      val inetAddress = socket.localAddress
-
-      var hostname = inetAddress.hostName
-      if (inetAddress is Inet6Address && hostname.contains(':')) {
-        // hostname is likely some form representing the IPv6 bytes
-        // 2001:0db8:85a3:0000:0000:8a2e:0370:7334
-        // 2001:db8:85a3::8a2e:370:7334
-        // ::1
-        hostname = "[$hostname]"
-      }
-
       val localPort = socket.localPort
+      val hostAndPort = headers[":authority"]
+        ?: headers["Host"]
+        ?: when (val inetAddress = socket.localAddress) {
+          is Inet6Address -> "[${inetAddress.hostAddress}]:$localPort"
+          else -> "${inetAddress.hostAddress}:$localPort"
+        }
+
       // Allow null in failure case to allow for testing bad requests
-      this.requestUrl = "$scheme://$hostname:$localPort$path".toHttpUrlOrNull()
+      this.requestUrl = "$scheme://$hostAndPort$path".toHttpUrlOrNull()
     } else {
       this.requestUrl = null
       this.method = null
